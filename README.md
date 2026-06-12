@@ -11,7 +11,7 @@ flowchart TD
     infer["POST /infer<br/>{input}"]
     feedback["POST /feedback<br/>{input, completion}"]
     valkey[("Aiven for Valkey<br/>valkey-search / HNSW")]
-    ollama["Local Ollama server<br/>gemma4:31b-mlx"]
+    ollama["OpenAI-compatible chat API<br/>/v1/chat/completions<br/>(Ollama, OpenAI, Anthropic, ...)"]
     completion["completion"]
 
     subgraph spin["Spin component (Wasm)"]

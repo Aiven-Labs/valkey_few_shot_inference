@@ -11,13 +11,13 @@ flowchart TD
     infer["POST /infer<br/>{input}"]
     feedback["POST /feedback<br/>{input, completion}"]
     valkey[("Aiven for Valkey<br/>valkey-search / HNSW")]
+    ollama["Local Ollama server<br/>gemma4:31b-mlx"]
     completion["completion"]
 
     subgraph spin["Spin component (Wasm)"]
         embed["1. embed input<br/>all-minilm-l6-v2 to 384-d vector"]
         search["2. FT.SEARCH KNN 3"]
         prompt["3. build prompt with retrieved examples"]
-        llm["4. Llm.infer llama2-chat"]
         fb_embed["embed + HSET into example bank"]
     end
 
@@ -26,8 +26,8 @@ flowchart TD
     search -->|vector search| valkey
     valkey -->|retrieved examples| prompt
     embed -.-> prompt
-    prompt --> llm
-    llm --> completion
+    prompt -->|"4. HTTP generate"| ollama
+    ollama -->|generated text| completion
 
     feedback --> fb_embed
     fb_embed -->|write back| valkey

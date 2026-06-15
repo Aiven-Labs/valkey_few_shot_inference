@@ -32,5 +32,15 @@ RUN spin build
 
 EXPOSE 3000
 
-# Spin reads variables from SPIN_VARIABLE_<NAME> in the environment.
+# Spin reads variables from SPIN_VARIABLE_<NAME> in the environment. These are
+# placeholders, not real config — override every one at `docker run` time with
+# -e SPIN_VARIABLE_<NAME>="...". Note: an ENV set here overrides the spin.toml
+# default, so vars with meaningful defaults are seeded with that same default.
+ENV SPIN_VARIABLE_VALKEY_URL="rediss://CHANGEME" \
+    SPIN_VARIABLE_INFERENCE_API_URL="http://localhost:11434/v1/chat/completions" \
+    SPIN_VARIABLE_CHAT_MODEL="gpt-oss:20b" \
+    SPIN_VARIABLE_INFERENCE_API_KEY="" \
+    SPIN_VARIABLE_CACHE_THRESHOLD="0.95" \
+    SPIN_VARIABLE_CACHE_TTL_SECONDS="3600"
+
 CMD ["spin", "up", "--listen", "0.0.0.0:3000"]

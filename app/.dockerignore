@@ -1,0 +1,10 @@
+node_modules
+dist
+target
+# Keep the AI models out of the build context EXCEPT the embedding model — Spin
+# expects all-minilm-l6-v2 on disk at runtime and won't fetch it itself.
+.spin/*
+!.spin/ai-models
+.spin/ai-models/*
+!.spin/ai-models/all-minilm-l6-v2
+bun.lock

@@ -1,0 +1,30 @@
+# Aiven Apps Compose file for the few-shot Spin component.
+#
+# Aiven reads this Compose file, detects compatible services, and injects the
+# connection variables at deploy time — so there's no need to wire up restart
+# policies, healthchecks, or a connection string by hand. Declaring the valkey
+# service simply signals "we want a managed Valkey" to the deploy platform.
+#
+# Spin reads config from SPIN_VARIABLE_<NAME> at runtime. The inference values
+# (endpoint, model, key) are set per deployment for whichever OpenAI-compatible
+# provider you point at (OpenAI, Anthropic, Bedrock, ...).
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      SPIN_VARIABLE_VALKEY_URL: "${SPIN_VARIABLE_VALKEY_URL}"
+      SPIN_VARIABLE_INFERENCE_API_URL: "${SPIN_VARIABLE_INFERENCE_API_URL}"
+      SPIN_VARIABLE_CHAT_MODEL: "${SPIN_VARIABLE_CHAT_MODEL}"
+      SPIN_VARIABLE_INFERENCE_API_KEY: "${SPIN_VARIABLE_INFERENCE_API_KEY}"
+      SPIN_VARIABLE_CACHE_THRESHOLD: "${SPIN_VARIABLE_CACHE_THRESHOLD:-0.95}"
+      SPIN_VARIABLE_CACHE_TTL_SECONDS: "${SPIN_VARIABLE_CACHE_TTL_SECONDS:-3600}"
+    depends_on:
+      - valkey
+
+  valkey:
+    # The app builds an HNSW vector index (FT.CREATE), which needs the
+    # valkey-search module. valkey-bundle ships it; the plain valkey image does
+    # not — using it would fail with "unknown command FT.CREATE".
+    image: valkey/valkey-bundle:9

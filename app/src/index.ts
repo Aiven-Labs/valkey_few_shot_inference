@@ -1,4 +1,4 @@
-import { AutoRouter } from "itty-router";
+import { AutoRouter, error } from "itty-router";
 import { Llm, Redis, Variables } from "@fermyon/spin-sdk";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +41,10 @@ const CACHE_PREFIX = "cache:";
 // Pull the Valkey connection string from a Spin variable (see spin.toml).
 function valkeyUrl(): string {
   const url = Variables.get("valkey_url");
-  if (!url) throw new Error("valkey_url variable is not set");
+  if (!url) {
+    console.error("[config] valkey_url variable is not set");
+    throw new Error("valkey_url variable is not set");
+  }
   return url;
 }
 
@@ -49,12 +52,18 @@ function valkeyUrl(): string {
 // target Ollama, OpenAI, or Anthropic without code changes.
 function inferenceApiUrl(): string {
   const url = Variables.get("inference_api_url");
-  if (!url) throw new Error("inference_api_url variable is not set");
+  if (!url) {
+    console.error("[config] inference_api_url variable is not set");
+    throw new Error("inference_api_url variable is not set");
+  }
   return url;
 }
 function chatModel(): string {
   const model = Variables.get("chat_model");
-  if (!model) throw new Error("chat_model variable is not set");
+  if (!model) {
+    console.error("[config] chat_model variable is not set");
+    throw new Error("chat_model variable is not set");
+  }
   return model;
 }
 // Optional: a bearer token for hosted providers (OpenAI, Anthropic). Local
@@ -468,7 +477,24 @@ function deltaText(chunk: {
   return chunk.choices?.[0]?.delta?.content ?? "";
 }
 
-const router = AutoRouter();
+// Pull a human-readable message out of whatever was thrown. Spin host errors
+// are tagged objects whose text lives in `.payload.val` (and sometimes `.val`),
+// not in String(e) — which gives "[object Object]". JS Errors use `.message`.
+function errorMessage(e: unknown): string {
+  const err = e as { message?: string; val?: unknown; payload?: { val?: unknown } };
+  return String(err?.payload?.val ?? err?.val ?? err?.message ?? e);
+}
+
+// Global error hook: log every uncaught route error to stdout (so it lands in
+// `docker logs` / the platform log collector) before formatting the response.
+// Without this, itty-router serializes the error into the HTTP body only and
+// nothing reaches the logs.
+const router = AutoRouter({
+  catch: (e: unknown, req: Request) => {
+    console.error(`[error] ${req.method} ${new URL(req.url).pathname}:`, errorMessage(e));
+    return error(500, errorMessage(e));
+  },
+});
 
 router.get("/health", () => json({ status: "ok" }));
 
@@ -615,6 +641,7 @@ router.post("/infer/stream", async (req) => {
           cached: false,
         }));
       } catch (e) {
+        console.error("[infer/stream] failed:", (e as Error)?.stack ?? e);
         controller.enqueue(sse("error", { error: String((e as Error)?.message ?? e) }));
       } finally {
         controller.close();
@@ -665,17 +692,22 @@ router.post("/infer", async (req) => {
     }
   }
 
-  const inference = await chatCompletion(buildMessages(input, examples));
-  const completion = inference.text.trim();
-  if (completion) storeCache(conn, input, completion, queryVec, fingerprint);
+  try {
+    const inference = await chatCompletion(buildMessages(input, examples));
+    const completion = inference.text.trim();
+    if (completion) storeCache(conn, input, completion, queryVec, fingerprint);
 
-  return json({
-    input,
-    completion,
-    fewShotExamples,
-    usage: inference.usage,
-    cached: false,
-  });
+    return json({
+      input,
+      completion,
+      fewShotExamples,
+      usage: inference.usage,
+      cached: false,
+    });
+  } catch (e) {
+    console.error("[infer] failed:", (e as Error)?.stack ?? e);
+    return json({ error: String((e as Error)?.message ?? e) }, 502);
+  }
 });
 
 // POST /feedback  { "input": "...", "completion": "..." }
